@@ -262,13 +262,23 @@
       showToast('批改完成', 'success');
     } catch (err) {
       clearInterval(stepTimer);
-      const code = err.code || ApiClient.ErrorCode.UNKNOWN;
-      if (code === ApiClient.ErrorCode.IMAGE_BLURRY) setStep('preprocess', 'error');
-      else if (code === ApiClient.ErrorCode.CUT_FAILED) setStep('cut', 'error');
-      else if (code === ApiClient.ErrorCode.OCR_LOW_CONFIDENCE) setStep('ocr', 'error');
-      else if (code === ApiClient.ErrorCode.LLM_FAILED) setStep('grade', 'error');
-      else setStep('grade', 'error');
-      showToast(err.message, 'error');
+      setStep('grade', 'error');
+      showToast('批改出错，详见下方错误信息', 'error');
+      // 在结果区域显示完整错误
+      els.emptyState.hidden = true;
+      els.resultContent.hidden = false;
+      els.questionCount.textContent = '错误';
+      els.totalScore.textContent = '!';
+      els.scoreDetail.textContent = '批改失败';
+      els.overallComment.textContent = '';
+      els.annotatedBlock.hidden = true;
+      els.questionList.innerHTML = `
+        <li class="question-item question-item--need_review">
+          <div class="question-item__head">
+            <span class="question-item__no">错误信息</span>
+          </div>
+          <pre style="white-space:pre-wrap;word-break:break-all;font-size:12px;color:#ef4444;max-height:400px;overflow:auto;">${escapeHtml(err.message || String(err))}</pre>
+        </li>`;
     } finally {
       setLoading(false);
     }

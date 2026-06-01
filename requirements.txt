@@ -5,6 +5,8 @@ numpy>=1.24
 requests>=2.31
 python-dotenv>=1.0
 Pillow>=10.0
+openai>=1.0
+httpx>=0.25
 
 # 阿里云 SDK（切题 + OCR）
 alibabacloud-credentials>=0.3

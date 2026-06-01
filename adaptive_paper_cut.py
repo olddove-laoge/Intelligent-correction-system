@@ -8,23 +8,26 @@ import cv2
 
 from aliyun_paper_cut import draw_detected_regions, recognize_edu_paper_cut
 from seeddream_qieti import (
-    KIMI_API_KEY,
-    KIMI_BASE_URL,
-    KIMI_MODEL,
-    OpenAI,
     download_image,
     generate_marked_image,
     image_file_to_data_url,
 )
 
+from mimo_question_grading import (
+    MIMO_API_KEY,
+    MIMO_BASE_URL,
+    MIMO_MODEL,
+    create_mimo_client,
+)
 
-def classify_paper_style_with_kimi(
+
+def classify_paper_style_with_mimo(
     image_path: str | Path,
     *,
-    model: str = KIMI_MODEL,
+    model: str = MIMO_MODEL,
     api_key: str | None = None,
 ) -> dict[str, str]:
-    client = OpenAI(base_url=KIMI_BASE_URL, api_key=api_key or KIMI_API_KEY)
+    client = create_mimo_client(api_key=api_key)
     image_data_url = image_file_to_data_url(image_path)
     completion = client.chat.completions.create(
         model=model,
@@ -53,7 +56,7 @@ def classify_paper_style_with_kimi(
     )
     content = completion.choices[0].message.content
     if not content:
-        return {"style": "printed", "reason": "Kimi returned empty response."}
+        return {"style": "printed", "reason": "Mimo returned empty response."}
     if isinstance(content, str):
         return json.loads(content)
     return {"style": "printed", "reason": str(content)}
@@ -106,11 +109,11 @@ def run_aliyun_flow(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Use Kimi to route paper cutting to SeedDream or Aliyun automatically.")
+    parser = argparse.ArgumentParser(description="Use Mimo to route paper cutting to SeedDream or Aliyun automatically.")
     parser.add_argument("--input", required=True, help="Path to the input image.")
     parser.add_argument("--output-dir", required=True, help="Directory to save outputs.")
-    parser.add_argument("--kimi-model", default=KIMI_MODEL, help="Kimi model for style classification.")
-    parser.add_argument("--kimi-api-key", default=None, help="Optional Kimi API key override.")
+    parser.add_argument("--mimo-model", default=MIMO_MODEL, help="Mimo model for style classification.")
+    parser.add_argument("--mimo-api-key", default=None, help="Optional Mimo API key override.")
     parser.add_argument("--access-key-id", required=True, help="Aliyun access key id.")
     parser.add_argument("--access-key-secret", required=True, help="Aliyun access key secret.")
     return parser
@@ -127,10 +130,10 @@ def main() -> int:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    decision = classify_paper_style_with_kimi(
+    decision = classify_paper_style_with_mimo(
         image_path,
-        model=args.kimi_model,
-        api_key=args.kimi_api_key,
+        model=args.mimo_model,
+        api_key=args.mimo_api_key,
     )
     style = str(decision.get("style", "printed")).strip().lower()
     if style not in {"handwriting", "printed"}:

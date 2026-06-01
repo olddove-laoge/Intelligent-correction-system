@@ -3,18 +3,22 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 from pathlib import Path
 
 import httpx
 from openai import OpenAI
 
+from dotenv import load_dotenv
 
-ARK_API_KEY = "ark-971708ad-f9cc-4565-9a99-04cb9201618b-cb7eb"
-BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
-MODEL = "doubao-seedream-5-0-260128"
-KIMI_API_KEY = "sk-smFLFPGVJI2MOuGXaI7tHXYEnDfJRXpXRdf6EPPPhZQRQ8DM"
-KIMI_BASE_URL = "https://api.moonshot.cn/v1"
-KIMI_MODEL = "kimi-k2.6"
+load_dotenv()
+
+ARK_API_KEY = os.getenv("ARK_API_KEY", "")
+BASE_URL = os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
+MODEL = os.getenv("ARK_MODEL", "doubao-seedream-5-0-260128")
+MIMO_API_KEY = os.getenv("MIMO_API_KEY", "")
+MIMO_BASE_URL = os.getenv("MIMO_BASE_URL", "")
+MIMO_MODEL = os.getenv("MIMO_MODEL", "mimo-v2.5")
 PROMPT = (
     "你是一个智能教育剪切助手。请分析这张包含学生手写解答的试卷图片，"
     "识别出里面的所有题目。题目不一定是印刷体，也可能是手写上去的，"
@@ -56,22 +60,22 @@ def create_client(api_key: str | None = None) -> OpenAI:
     return OpenAI(base_url=BASE_URL, api_key=resolved_api_key)
 
 
-def create_kimi_client(api_key: str | None = None) -> OpenAI:
-    resolved_api_key = api_key or KIMI_API_KEY
+def create_mimo_client(api_key: str | None = None) -> OpenAI:
+    resolved_api_key = api_key or MIMO_API_KEY
     if not resolved_api_key:
-        raise SeedDreamError("Kimi API key is missing.")
-    return OpenAI(base_url=KIMI_BASE_URL, api_key=resolved_api_key)
+        raise SeedDreamError("Mimo API key is missing.")
+    return OpenAI(base_url=MIMO_BASE_URL, api_key=resolved_api_key)
 
 
-def analyze_questions_with_kimi(
+def analyze_questions_with_mimo(
     image_path: str | Path,
     *,
-    model: str = KIMI_MODEL,
+    model: str = MIMO_MODEL,
     api_key: str | None = None,
 ) -> str:
-    kimi_client = create_kimi_client(api_key=api_key)
+    mimo_client = create_mimo_client(api_key=api_key)
     image_data_url = image_file_to_data_url(image_path)
-    completion = kimi_client.chat.completions.create(
+    completion = mimo_client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": "你是一个试卷切题分析助手。"},
@@ -100,7 +104,7 @@ def analyze_questions_with_kimi(
     )
     content = completion.choices[0].message.content
     if not content:
-        raise SeedDreamError("Kimi returned empty analysis.")
+        raise SeedDreamError("Mimo returned empty analysis.")
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -169,10 +173,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--response-format", default="url", help="Seedream response format.")
     parser.add_argument("--watermark", action="store_true", help="Enable watermark on generated image.")
     parser.add_argument("--api-key", default=None, help="Optional Ark API key override.")
-    parser.add_argument("--disable-kimi-analysis", action="store_true", help="Disable Kimi pre-analysis.")
-    parser.add_argument("--kimi-model", default=KIMI_MODEL, help="Kimi model id for pre-analysis.")
-    parser.add_argument("--kimi-api-key", default=None, help="Optional Kimi API key override.")
-    parser.add_argument("--analysis-output", default=None, help="Optional path to save Kimi analysis text.")
+    parser.add_argument("--disable-mimo-analysis", action="store_true", help="Disable Mimo pre-analysis.")
+    parser.add_argument("--mimo-model", default=MIMO_MODEL, help="Mimo model id for pre-analysis.")
+    parser.add_argument("--mimo-api-key", default=None, help="Optional Mimo API key override.")
+    parser.add_argument("--analysis-output", default=None, help="Optional path to save Mimo analysis text.")
     return parser
 
 
@@ -181,11 +185,11 @@ def main() -> int:
     args = parser.parse_args()
 
     analysis_text = None
-    if not args.disable_kimi_analysis:
-        analysis_text = analyze_questions_with_kimi(
+    if not args.disable_mimo_analysis:
+        analysis_text = analyze_questions_with_mimo(
             args.input,
-            model=args.kimi_model,
-            api_key=args.kimi_api_key,
+            model=args.mimo_model,
+            api_key=args.mimo_api_key,
         )
         if args.analysis_output:
             analysis_output_path = Path(args.analysis_output)

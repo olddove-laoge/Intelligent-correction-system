@@ -8,8 +8,8 @@ const AppConfig = {
   /** 为 true 时后端不可用时使用本地模拟数据（便于纯前端调试） */
   MOCK_MODE: false,
 
-  /** 请求超时（毫秒），与需求文档 15 秒总体响应建议一致 */
-  REQUEST_TIMEOUT: 60000,
+  /** 请求超时（毫秒），批改流程含多次大模型调用，需要较长时间 */
+  REQUEST_TIMEOUT: 180000,
 
   /** 批改流程各阶段文案 */
   STEP_MESSAGES: {
