@@ -185,25 +185,26 @@ def _handwriting_flow(
 ):
     """手写路线：SeedDream 在增强图上画红框 → 检测红框 → 裁切 → 批改 → 返回标记图。"""
 
-    # SeedDream 在增强图上画红框
+    # SeedDream 画红框，检测到的框太少则重试（最多 3 次）
     marked_path = upload_dir / f"marked_{image_id}"
-    result_url = generate_marked_image(str(enhanced_path))
-    download_image(result_url, str(marked_path))
-
-    # 检测红框（在标记图上）
-    marked_image = cv2.imread(str(marked_path))
-    if marked_image is None:
-        return error_response("CUT_FAILED", "SeedDream 返回图像无法读取")
-    regions = detect_red_boxes(marked_image)
-    print(f"[DEBUG] 检测红框: {len(regions)} 个", flush=True)
-    for r in regions:
-        print(f"  #{r.index}: x={r.x}, y={r.y}, w={r.w}, h={r.h}", flush=True)
-
-    # 过滤噪声
     eh, ew = enhanced.shape[:2]
     min_side = max(100, int(min(eh, ew) * 0.03))
-    regions = [r for r in regions if r.w >= min_side and r.h >= min_side]
-    print(f"[DEBUG] 过滤后: {len(regions)} 个 (min_side={min_side})", flush=True)
+    regions = []
+    marked_image = None
+
+    for attempt in range(3):
+        result_url = generate_marked_image(str(enhanced_path))
+        download_image(result_url, str(marked_path))
+        marked_image = cv2.imread(str(marked_path))
+        if marked_image is None:
+            continue
+        regions = detect_red_boxes(marked_image)
+        regions = [r for r in regions if r.w >= min_side and r.h >= min_side]
+        if len(regions) >= 2:
+            break
+
+    if not regions or marked_image is None:
+        return error_response("CUT_FAILED", "SeedDream 未能检测到足够题目区域")
 
     # 标记图坐标 → 增强图坐标（按比例缩放），构造 RedBoxRegion 给 crop_regions_from_image
     mh, mw = marked_image.shape[:2]
