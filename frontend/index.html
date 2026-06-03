@@ -82,7 +82,10 @@
 
       <!-- 右侧：结果展示 -->
       <section class="panel panel--result" aria-labelledby="result-heading">
-        <h2 id="result-heading" class="panel__title">批改结果</h2>
+        <div class="panel__title-row">
+          <h2 id="result-heading" class="panel__title">批改结果</h2>
+          <button class="result-star" id="btnStar" title="收藏" hidden>★</button>
+        </div>
 
         <div class="empty-state" id="emptyState">
           <span class="empty-state__icon" aria-hidden="true">📋</span>
@@ -103,17 +106,14 @@
 
           <!-- 评分总览 -->
           <div class="score-card" id="scoreCard">
-            <div class="score-card__left">
-              <div class="score-card__main">
-                <span class="score-card__value" id="totalScore">—</span>
-                <span class="score-card__unit">分</span>
-              </div>
-              <div class="score-card__meta">
-                <span id="scoreDetail">满分 — 分</span>
-              </div>
-              <p class="score-card__comment" id="overallComment"></p>
+            <div class="score-card__main">
+              <span class="score-card__value" id="totalScore">—</span>
+              <span class="score-card__unit">分</span>
             </div>
-            <button class="score-card__star" id="btnStar" title="收藏" hidden>★</button>
+            <div class="score-card__meta">
+              <span id="scoreDetail">满分 — 分</span>
+            </div>
+            <p class="score-card__comment" id="overallComment"></p>
           </div>
 
           <!-- 批注图 -->

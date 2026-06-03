@@ -525,28 +525,37 @@ body {
   border-radius: var(--radius);
   padding: 1.25rem;
   margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+/* Title row with star */
+.panel__title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
 }
-.score-card__left {
-  flex: 1;
-  text-align: center;
+.panel__title-row .panel__title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
-.score-card__star {
+.result-star {
   background: none;
   border: none;
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   cursor: pointer;
   color: #cbd5e1;
-  padding: 0.5rem;
+  padding: 0.25rem;
   transition: color 0.15s;
   flex-shrink: 0;
 }
-.score-card__star--active {
+.result-star--active {
   color: #f59e0b;
 }
-.score-card__star:hover {
+.result-star:hover {
   color: #f59e0b;
 }
 

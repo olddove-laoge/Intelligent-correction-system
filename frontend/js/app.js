@@ -521,21 +521,21 @@
     try {
       const data = await ApiClient.getFavoriteIds();
       const isFav = (data.ids || []).includes(state.currentRecordId);
-      els.btnStar.classList.toggle('score-card__star--active', isFav);
+      els.btnStar.classList.toggle('result-star--active', isFav);
     } catch { els.btnStar.hidden = true; }
   }
 
   async function toggleFavoriteFromResult() {
     if (!state.currentRecordId) return;
-    const isFav = els.btnStar.classList.contains('score-card__star--active');
+    const isFav = els.btnStar.classList.contains('result-star--active');
     try {
       if (isFav) {
         await ApiClient.removeFavorite(state.currentRecordId);
-        els.btnStar.classList.remove('score-card__star--active');
+        els.btnStar.classList.remove('result-star--active');
         showToast('已取消收藏', 'success');
       } else {
         await ApiClient.addFavorite(state.currentRecordId);
-        els.btnStar.classList.add('score-card__star--active');
+        els.btnStar.classList.add('result-star--active');
         showToast('已收藏', 'success');
       }
     } catch (err) {
