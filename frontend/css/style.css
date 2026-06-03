@@ -180,21 +180,6 @@ body {
 .history-item__delete:hover {
   color: var(--error);
 }
-.history-item__star {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-  color: #cbd5e1;
-  padding: 0.25rem;
-  transition: color 0.15s;
-}
-.history-item__star--active {
-  color: #f59e0b;
-}
-.history-item__star:hover {
-  color: #f59e0b;
-}
 
 .status-dot--err {
   background: var(--error);
@@ -540,7 +525,29 @@ body {
   border-radius: var(--radius);
   padding: 1.25rem;
   margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.score-card__left {
+  flex: 1;
   text-align: center;
+}
+.score-card__star {
+  background: none;
+  border: none;
+  font-size: 1.6rem;
+  cursor: pointer;
+  color: #cbd5e1;
+  padding: 0.5rem;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.score-card__star--active {
+  color: #f59e0b;
+}
+.score-card__star:hover {
+  color: #f59e0b;
 }
 
 .score-card__main {

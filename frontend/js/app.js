@@ -11,6 +11,7 @@
     cameraStream: null,
     activeTab: 'upload',
     cutResult: null,  // 切题结果
+    currentRecordId: null,  // 当前查看的记录 ID
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -48,6 +49,7 @@
     historyPanel: $('#historyPanel'),
     historyList: $('#historyList'),
     btnCloseHistory: $('#btnCloseHistory'),
+    btnStar: $('#btnStar'),
   };
 
   function init() {
@@ -111,6 +113,7 @@
     els.btnHistory.addEventListener('click', showHistory);
     els.btnCloseHistory.addEventListener('click', () => { els.historyPanel.hidden = true; });
     els.historyPanel.addEventListener('click', (e) => { if (e.target === els.historyPanel) els.historyPanel.hidden = true; });
+    els.btnStar.addEventListener('click', () => { toggleFavoriteFromResult(); });
   }
 
   async function checkApiHealth() {
@@ -284,7 +287,9 @@
       setStep('ocr', 'done');
       setStep('grade', 'done');
 
+      state.currentRecordId = data.record_id || null;
       renderGradeResult(data);
+      updateStarButton();
       showToast('批改完成', 'success');
     } catch (err) {
       setStep('grade', 'error');
@@ -442,21 +447,16 @@
         item.className = 'history-item';
         const time = r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : r.id;
         const mode = r.cut_mode === 'handwriting' ? '手写' : '印刷';
-        const starred = favIds.has(r.id);
+        const isFav = favIds.has(r.id);
         item.innerHTML = `
           <div class="history-item__info">
-            <div class="history-item__time">${escapeHtml(time)} · ${mode}</div>
+            <div class="history-item__time">${isFav ? '★ ' : ''}${escapeHtml(time)} · ${mode}</div>
             <div class="history-item__summary">${escapeHtml(r.comment || '')}</div>
           </div>
           <span class="history-item__score">${r.total_score}/${r.max_score}</span>
-          <button class="history-item__star${starred ? ' history-item__star--active' : ''}" title="收藏" data-id="${r.id}">★</button>
           <button class="history-item__delete" title="删除" data-id="${r.id}">×</button>`;
 
         item.querySelector('.history-item__info').addEventListener('click', () => loadHistoryDetail(r.id));
-        item.querySelector('.history-item__star').addEventListener('click', (e) => {
-          e.stopPropagation();
-          toggleFavorite(r.id, e.currentTarget);
-        });
         item.querySelector('.history-item__delete').addEventListener('click', (e) => {
           e.stopPropagation();
           deleteHistoryRecord(r.id);
@@ -474,9 +474,11 @@
     try {
       const data = await ApiClient.getHistoryDetail(recordId);
       state.cutResult = { cut_mode: data.cut_mode, image_url: data.image_url, questions: data.questions || [] };
+      state.currentRecordId = recordId;
       showResultsShell();
       renderCutResult(data);
       renderGradeResult(data);
+      updateStarButton();
       showToast('已加载历史记录', 'success');
     } catch (err) {
       showError(err.message || String(err));
@@ -506,6 +508,34 @@
       } else {
         await ApiClient.addFavorite(recordId);
         btn.classList.add('history-item__star--active');
+        showToast('已收藏', 'success');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  async function updateStarButton() {
+    if (!state.currentRecordId) { els.btnStar.hidden = true; return; }
+    els.btnStar.hidden = false;
+    try {
+      const data = await ApiClient.getFavoriteIds();
+      const isFav = (data.ids || []).includes(state.currentRecordId);
+      els.btnStar.classList.toggle('score-card__star--active', isFav);
+    } catch { els.btnStar.hidden = true; }
+  }
+
+  async function toggleFavoriteFromResult() {
+    if (!state.currentRecordId) return;
+    const isFav = els.btnStar.classList.contains('score-card__star--active');
+    try {
+      if (isFav) {
+        await ApiClient.removeFavorite(state.currentRecordId);
+        els.btnStar.classList.remove('score-card__star--active');
+        showToast('已取消收藏', 'success');
+      } else {
+        await ApiClient.addFavorite(state.currentRecordId);
+        els.btnStar.classList.add('score-card__star--active');
         showToast('已收藏', 'success');
       }
     } catch (err) {
