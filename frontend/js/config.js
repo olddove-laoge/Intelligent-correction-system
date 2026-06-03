@@ -2,8 +2,8 @@
  * 前端配置 — 对接 Flask 时修改 API_BASE
  */
 const AppConfig = {
-  /** Flask 后端地址，开发时可为 http://127.0.0.1:5000 */
-  API_BASE: 'http://127.0.0.1:5001',
+  /** 后端地址，留空则自动使用当前页面地址（支持手机/局域网访问） */
+  API_BASE: window.location.origin,
 
   /** 为 true 时后端不可用时使用本地模拟数据（便于纯前端调试） */
   MOCK_MODE: false,

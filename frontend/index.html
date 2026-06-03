@@ -63,13 +63,14 @@
         <!-- 操作按钮 -->
         <div class="actions">
           <button type="button" class="btn btn--primary" id="btnUpload" disabled>上传图像</button>
+          <button type="button" class="btn btn--accent" id="btnCut" disabled>开始切题</button>
           <button type="button" class="btn btn--accent" id="btnGrade" disabled>开始批改</button>
         </div>
 
         <!-- 流程进度 -->
         <ol class="steps" id="stepsList" aria-label="批改进度">
           <li class="step" data-step="upload"><span class="step__icon">1</span><span class="step__label">上传</span></li>
-          <li class="step" data-step="preprocess"><span class="step__icon">2</span><span class="step__label">预处理</span></li>
+          <li class="step" data-step="preprocess"><span class="step__icon">2</span><span class="step__label">增强</span></li>
           <li class="step" data-step="cut"><span class="step__icon">3</span><span class="step__label">切题</span></li>
           <li class="step" data-step="ocr"><span class="step__icon">4</span><span class="step__label">识别</span></li>
           <li class="step" data-step="grade"><span class="step__icon">5</span><span class="step__label">批改</span></li>

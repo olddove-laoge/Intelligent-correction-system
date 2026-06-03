@@ -1,5 +1,6 @@
 /**
  * 智能作业批改 — 主应用逻辑
+ * 流程：上传 → 切题 → 批改
  */
 (function () {
   const state = {
@@ -9,6 +10,7 @@
     uploaded: false,
     cameraStream: null,
     activeTab: 'upload',
+    cutResult: null,  // 切题结果
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -21,6 +23,7 @@
     previewImage: $('#previewImage'),
     btnClear: $('#btnClear'),
     btnUpload: $('#btnUpload'),
+    btnCut: $('#btnCut'),
     btnGrade: $('#btnGrade'),
     btnCapture: $('#btnCapture'),
     cameraVideo: $('#cameraVideo'),
@@ -78,14 +81,11 @@
       const file = e.target.files?.[0];
       if (file) setImageFile(file);
     });
-
     els.uploadZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       els.uploadZone.classList.add('dragover');
     });
-    els.uploadZone.addEventListener('dragleave', () => {
-      els.uploadZone.classList.remove('dragover');
-    });
+    els.uploadZone.addEventListener('dragleave', () => els.uploadZone.classList.remove('dragover'));
     els.uploadZone.addEventListener('drop', (e) => {
       e.preventDefault();
       els.uploadZone.classList.remove('dragover');
@@ -93,7 +93,6 @@
       if (file?.type.startsWith('image/')) setImageFile(file);
       else showToast('请上传图片文件', 'warning');
     });
-
     els.btnClear.addEventListener('click', clearImage);
   }
 
@@ -103,6 +102,7 @@
 
   function bindActions() {
     els.btnUpload.addEventListener('click', handleUpload);
+    els.btnCut.addEventListener('click', handleCut);
     els.btnGrade.addEventListener('click', handleGrade);
   }
 
@@ -117,7 +117,7 @@
       dot.className = 'status-dot status-dot--err';
       text.textContent = AppConfig.MOCK_MODE ? '演示模式' : '后端未连接';
       if (!AppConfig.MOCK_MODE) {
-        showToast('无法连接 Flask 后端，请确认服务已启动（' + AppConfig.API_BASE + '）', 'warning');
+        showToast('无法连接 Flask 后端（' + AppConfig.API_BASE + '）', 'warning');
       }
     }
   }
@@ -127,11 +127,13 @@
     state.file = file;
     state.imageId = null;
     state.uploaded = false;
+    state.cutResult = null;
     state.previewUrl = URL.createObjectURL(file);
     els.previewImage.src = state.previewUrl;
     els.previewArea.hidden = false;
     els.btnUpload.disabled = false;
-    els.btnGrade.disabled = false;
+    els.btnCut.disabled = true;
+    els.btnGrade.disabled = true;
     resetSteps();
     hideResults();
   }
@@ -141,72 +143,54 @@
     state.file = null;
     state.imageId = null;
     state.uploaded = false;
+    state.cutResult = null;
     els.previewArea.hidden = true;
     els.previewImage.removeAttribute('src');
     els.fileInput.value = '';
     els.btnUpload.disabled = true;
+    els.btnCut.disabled = true;
     els.btnGrade.disabled = true;
     resetSteps();
     hideResults();
   }
 
   function clearPreviewUrl() {
-    if (state.previewUrl) {
-      URL.revokeObjectURL(state.previewUrl);
-      state.previewUrl = null;
-    }
+    if (state.previewUrl) { URL.revokeObjectURL(state.previewUrl); state.previewUrl = null; }
   }
 
   async function startCamera() {
     stopCamera();
-    if (!navigator.mediaDevices?.getUserMedia) {
-      els.cameraHint.textContent = '当前浏览器不支持摄像头';
-      return;
-    }
+    if (!navigator.mediaDevices?.getUserMedia) { els.cameraHint.textContent = '当前浏览器不支持摄像头'; return; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
       state.cameraStream = stream;
       els.cameraVideo.srcObject = stream;
       els.cameraHint.textContent = '对准作业后点击「拍摄」';
-    } catch {
-      els.cameraHint.textContent = '无法访问摄像头，请检查权限';
-    }
+    } catch { els.cameraHint.textContent = '无法访问摄像头，请检查权限'; }
   }
 
   function stopCamera() {
-    if (state.cameraStream) {
-      state.cameraStream.getTracks().forEach((t) => t.stop());
-      state.cameraStream = null;
-    }
+    if (state.cameraStream) { state.cameraStream.getTracks().forEach((t) => t.stop()); state.cameraStream = null; }
     els.cameraVideo.srcObject = null;
   }
 
   function captureFromCamera() {
     const video = els.cameraVideo;
     const canvas = els.cameraCanvas;
-    if (!video.videoWidth) {
-      showToast('摄像头未就绪', 'warning');
-      return;
-    }
+    if (!video.videoWidth) { showToast('摄像头未就绪', 'warning'); return; }
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0);
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) return;
-        const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-        switchTab('upload');
-        setImageFile(file);
-        showToast('拍摄成功', 'success');
-      },
-      'image/jpeg',
-      0.92
-    );
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      switchTab('upload');
+      setImageFile(file);
+      showToast('拍摄成功', 'success');
+    }, 'image/jpeg', 0.92);
   }
 
+  // ── 上传 ─────────────────────────────────────────────────────────
   async function handleUpload() {
     if (!state.file) return;
     setLoading(true, '正在上传…');
@@ -216,8 +200,8 @@
       state.imageId = data.image_id;
       state.uploaded = true;
       setStep('upload', 'done');
-      showToast(data.message || '上传成功', 'success');
-      els.btnGrade.disabled = false;
+      els.btnCut.disabled = false;
+      showToast('上传成功', 'success');
     } catch (err) {
       setStep('upload', 'error');
       showToast(err.message, 'error');
@@ -226,14 +210,16 @@
     }
   }
 
-  async function handleGrade() {
+  // ── 切题 ─────────────────────────────────────────────────────────
+  async function handleCut() {
     if (!state.file) return;
 
-    setLoading(true, AppConfig.STEP_MESSAGES.preprocess);
+    setLoading(true, '正在增强图像…');
     resetSteps();
     showResultsShell();
+    setStep('upload', 'done');
 
-    const stepSequence = ['preprocess', 'cut', 'ocr', 'grade'];
+    const stepSequence = ['preprocess', 'cut'];
     let stepIndex = 0;
     const stepTimer = setInterval(() => {
       if (stepIndex > 0) setStep(stepSequence[stepIndex - 1], 'done');
@@ -247,104 +233,121 @@
     try {
       let data;
       if (state.imageId && state.uploaded) {
-        data = await ApiClient.correctHomework({ image_id: state.imageId });
+        data = await ApiClient.cutImage({ image_id: state.imageId });
       } else {
         const form = new FormData();
         form.append('file', state.file);
-        data = await ApiClient.correctHomework(form);
+        data = await ApiClient.cutImage(form);
       }
 
       clearInterval(stepTimer);
       stepSequence.forEach((s) => setStep(s, 'done'));
-      setStep('upload', 'done');
 
-      await renderResults(data);
-      showToast('批改完成', 'success');
+      state.cutResult = data;
+      els.btnGrade.disabled = false;
+
+      // 展示切题结果
+      renderCutResult(data);
+      showToast(`切题完成：${data.questions.length} 道题（${data.cut_mode}）`, 'success');
     } catch (err) {
       clearInterval(stepTimer);
-      setStep('grade', 'error');
-      showToast('批改出错，详见下方错误信息', 'error');
-      // 在结果区域显示完整错误
-      els.emptyState.hidden = true;
-      els.resultContent.hidden = false;
-      els.questionCount.textContent = '错误';
-      els.totalScore.textContent = '!';
-      els.scoreDetail.textContent = '批改失败';
-      els.overallComment.textContent = '';
-      els.annotatedBlock.hidden = true;
-      els.questionList.innerHTML = `
-        <li class="question-item question-item--need_review">
-          <div class="question-item__head">
-            <span class="question-item__no">错误信息</span>
-          </div>
-          <pre style="white-space:pre-wrap;word-break:break-all;font-size:12px;color:#ef4444;max-height:400px;overflow:auto;">${escapeHtml(err.message || String(err))}</pre>
-        </li>`;
+      setStep('cut', 'error');
+      showError(err.message || String(err));
     } finally {
       setLoading(false);
     }
   }
 
-  function showResultsShell() {
-    els.emptyState.hidden = true;
-    els.resultContent.hidden = false;
+  // ── 批改 ─────────────────────────────────────────────────────────
+  async function handleGrade() {
+    if (!state.cutResult || !state.cutResult.questions.length) {
+      showToast('请先完成切题', 'warning');
+      return;
+    }
+
+    setLoading(true, '正在批改…');
+    setStep('ocr', 'active');
+
+    try {
+      const data = await ApiClient.gradeQuestions(state.cutResult.questions);
+
+      setStep('ocr', 'done');
+      setStep('grade', 'done');
+
+      renderGradeResult(data);
+      showToast('批改完成', 'success');
+    } catch (err) {
+      setStep('grade', 'error');
+      showError(err.message || String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function hideResults() {
-    els.emptyState.hidden = false;
-    els.resultContent.hidden = true;
+  // ── 渲染切题结果 ─────────────────────────────────────────────────
+  function renderCutResult(data) {
+    const questions = data.questions || [];
+    els.questionCount.textContent = `${questions.length} 道题`;
+    els.totalScore.textContent = '—';
+    els.scoreDetail.textContent = '待批改';
+    els.overallComment.textContent = `切题方式：${data.cut_mode === 'handwriting' ? '手写' : '印刷'}`;
+    els.annotatedBlock.hidden = true;
+
+    // 绘制切题框
+    const imageSrc = ApiClient.resolveImageUrl(data.image_url) || state.previewUrl;
+    if (imageSrc && questions.length) {
+      ResultCanvas.drawBoxes(els.resultCanvas, imageSrc, questions).catch(() => {
+        showToast('切题框绘制失败', 'warning');
+      });
+    }
+
+    // 显示题目列表（暂无分数）
+    els.questionList.innerHTML = '';
+    questions.forEach((q) => {
+      const li = document.createElement('li');
+      li.className = 'question-item question-item--default';
+      li.innerHTML = `
+        <div class="question-item__head">
+          <span class="question-item__no">第 ${q.order ?? q.id} 题</span>
+          <span class="question-item__status">待批改</span>
+        </div>`;
+      els.questionList.appendChild(li);
+    });
   }
 
-  async function renderResults(data) {
+  // ── 渲染批改结果 ─────────────────────────────────────────────────
+  function renderGradeResult(data) {
     const count = data.question_count ?? data.questions?.length ?? 0;
     els.questionCount.textContent = `${count} 道题`;
+    els.totalScore.textContent = data.total_score ?? '—';
+    els.scoreDetail.textContent = `满分 ${data.max_score ?? '—'} 分`;
+    els.overallComment.textContent = data.comment || '';
 
-    const total = data.total_score ?? '—';
-    const max = data.max_score ?? '—';
-    els.totalScore.textContent = total;
-    els.scoreDetail.textContent = `满分 ${max} 分`;
-    els.overallComment.textContent = data.comment || '暂无总评';
+    // 在切题框上叠加分数
+    const cutQuestions = state.cutResult?.questions || [];
+    const gradeMap = {};
+    (data.questions || []).forEach((q) => { gradeMap[q.id] = q; });
 
-    const imageSrc =
-      ApiClient.resolveImageUrl(data.annotated_image_url) ||
-      ApiClient.resolveImageUrl(data.image_url) ||
-      (data.annotated_image_base64 ? `data:image/png;base64,${data.annotated_image_base64}` : null) ||
-      state.previewUrl;
+    const merged = cutQuestions.map((cq) => {
+      const gq = gradeMap[cq.id];
+      return gq ? { ...cq, ...gq } : cq;
+    });
 
-    if (data.annotated_image_url || data.annotated_image_base64) {
-      els.annotatedBlock.hidden = false;
-      els.annotatedImage.src = imageSrc;
-    } else {
-      els.annotatedBlock.hidden = true;
+    const imageSrc = ApiClient.resolveImageUrl(state.cutResult?.image_url) || state.previewUrl;
+    if (imageSrc && merged.length) {
+      ResultCanvas.drawBoxes(els.resultCanvas, imageSrc, merged).catch(() => {});
     }
 
-    const questions = data.questions || [];
-    renderQuestionList(questions);
-
-    if (imageSrc && questions.length) {
-      try {
-        await ResultCanvas.drawBoxes(els.resultCanvas, imageSrc, questions);
-      } catch {
-        showToast('切题框绘制失败', 'warning');
-      }
-    }
+    renderQuestionList(data.questions || []);
   }
 
   function renderQuestionList(questions) {
     els.questionList.innerHTML = '';
     const sorted = [...questions].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
     sorted.forEach((q) => {
       const li = document.createElement('li');
       li.className = `question-item question-item--${q.status || 'default'}`;
-
-      const statusLabel = {
-        correct: '正确',
-        wrong: '错误',
-        partial: '部分正确',
-        ocr_failed: '识别失败',
-        need_review: '需复核',
-      }[q.status] || '待批';
-
+      const statusLabel = { correct: '正确', wrong: '错误', partial: '部分正确', need_review: '需复核' }[q.status] || '待批';
       li.innerHTML = `
         <div class="question-item__head">
           <span class="question-item__no">第 ${q.order ?? q.id} 题</span>
@@ -353,10 +356,24 @@
         </div>
         <p class="question-item__ocr"><strong>题干：</strong>${escapeHtml(q.ocr_text || '—')}</p>
         <p class="question-item__answer"><strong>作答：</strong>${escapeHtml(q.student_answer || '—')}</p>
-        <p class="question-item__feedback">${escapeHtml(q.feedback || '')}</p>
-      `;
+        <p class="question-item__feedback">${escapeHtml(q.feedback || '')}</p>`;
       els.questionList.appendChild(li);
     });
+  }
+
+  // ── 错误展示 ─────────────────────────────────────────────────────
+  function showError(message) {
+    showResultsShell();
+    els.questionCount.textContent = '错误';
+    els.totalScore.textContent = '!';
+    els.scoreDetail.textContent = '失败';
+    els.overallComment.textContent = '';
+    els.annotatedBlock.hidden = true;
+    els.questionList.innerHTML = `
+      <li class="question-item question-item--need_review">
+        <div class="question-item__head"><span class="question-item__no">错误信息</span></div>
+        <pre style="white-space:pre-wrap;word-break:break-all;font-size:12px;color:#ef4444;max-height:400px;overflow:auto;">${escapeHtml(message)}</pre>
+      </li>`;
   }
 
   function escapeHtml(str) {
@@ -365,35 +382,24 @@
     return div.innerHTML;
   }
 
+  // ── UI 工具 ──────────────────────────────────────────────────────
+  function showResultsShell() { els.emptyState.hidden = true; els.resultContent.hidden = false; }
+  function hideResults() { els.emptyState.hidden = false; els.resultContent.hidden = true; }
   function setStep(name, status) {
     const el = els.stepsList.querySelector(`[data-step="${name}"]`);
     if (!el) return;
     el.classList.remove('active', 'done', 'error');
     if (status) el.classList.add(status);
   }
-
-  function resetSteps() {
-    els.stepsList.querySelectorAll('.step').forEach((el) => {
-      el.classList.remove('active', 'done', 'error');
-    });
-  }
-
-  function setLoading(show, text, sub) {
-    els.loadingOverlay.hidden = !show;
-    if (text) els.loadingText.textContent = text;
-    els.loadingSub.textContent = sub || '';
-  }
-
+  function resetSteps() { els.stepsList.querySelectorAll('.step').forEach((el) => el.classList.remove('active', 'done', 'error')); }
+  function setLoading(show, text) { els.loadingOverlay.hidden = !show; if (text) els.loadingText.textContent = text; }
   function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `toast toast--${type}`;
     toast.textContent = message;
     els.toastContainer.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('show'));
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
-    }, 3500);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3500);
   }
 
   document.addEventListener('DOMContentLoaded', init);
