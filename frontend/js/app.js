@@ -269,7 +269,10 @@
     setStep('ocr', 'active');
 
     try {
-      const data = await ApiClient.gradeQuestions(state.cutResult.questions);
+      const data = await ApiClient.gradeQuestions(state.cutResult.questions, {
+        cut_mode: state.cutResult.cut_mode,
+        image_url: state.cutResult.image_url,
+      });
 
       setStep('ocr', 'done');
       setStep('grade', 'done');

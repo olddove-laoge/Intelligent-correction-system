@@ -84,16 +84,32 @@ const ApiClient = (() => {
   }
 
   // ── 批改 ─────────────────────────────────────────────────────────
-  async function gradeQuestions(questions) {
+  async function gradeQuestions(questions, extra = {}) {
     if (MOCK_MODE) return mockGrade();
     const res = await fetchWithTimeout(`${API_BASE}/api/grade`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questions }),
+      body: JSON.stringify({ questions, ...extra }),
     });
     const data = await parseJson(res);
     if (!data.success) throw new ApiError(data.message || '批改失败', data.code);
     return data;
+  }
+
+  // ── 历史记录 ─────────────────────────────────────────────────────
+  async function getHistory() {
+    if (MOCK_MODE) return { records: [] };
+    return parseJson(await fetchWithTimeout(`${API_BASE}/api/history`));
+  }
+
+  async function getHistoryDetail(recordId) {
+    if (MOCK_MODE) return {};
+    return parseJson(await fetchWithTimeout(`${API_BASE}/api/history/${recordId}`));
+  }
+
+  async function deleteHistory(recordId) {
+    if (MOCK_MODE) return { success: true };
+    return parseJson(await fetchWithTimeout(`${API_BASE}/api/history/${recordId}`, { method: 'DELETE' }));
   }
 
   // ── Mock ─────────────────────────────────────────────────────────
@@ -126,5 +142,5 @@ const ApiClient = (() => {
     return url.startsWith('/') ? base + url : base + '/' + url;
   }
 
-  return { ApiError, ErrorCode, healthCheck, uploadImage, cutImage, gradeQuestions, resolveImageUrl };
+  return { ApiError, ErrorCode, healthCheck, uploadImage, cutImage, gradeQuestions, getHistory, getHistoryDetail, deleteHistory, resolveImageUrl };
 })();

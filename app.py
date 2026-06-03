@@ -8,7 +8,7 @@ from __future__ import annotations
 from flask import Flask, send_from_directory
 
 from backend.api.routes import api_bp
-from config import DEBUG, SECRET_KEY, UPLOAD_DIR
+from config import DEBUG, HISTORY_DIR, SECRET_KEY, UPLOAD_DIR
 
 
 def create_app() -> Flask:
@@ -24,6 +24,7 @@ def create_app() -> Flask:
     )
     app.config["SECRET_KEY"] = SECRET_KEY
     app.config["UPLOAD_DIR"] = str(UPLOAD_DIR)
+    app.config["HISTORY_DIR"] = str(HISTORY_DIR)
     app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB
 
     # 注册 API 蓝图

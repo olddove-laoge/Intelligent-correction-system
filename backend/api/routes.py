@@ -12,9 +12,12 @@
 
 from __future__ import annotations
 
+import json
+import shutil
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -372,13 +375,130 @@ def _grade_impl():
     total_score = sum(q["score"] for q in questions_out)
     max_total = sum(q["max_score"] for q in questions_out)
 
+    # 保存历史记录
+    record = {
+        "question_count": len(questions_out),
+        "total_score": total_score,
+        "max_score": max_total,
+        "comment": _generate_comment(questions_out),
+        "questions": questions_out,
+        "cut_mode": data.get("cut_mode", ""),
+        "image_url": data.get("image_url", ""),
+    }
+    record_id = _save_history(record, questions_input, upload_dir)
+
     return success_response({
+        "record_id": record_id,
         "question_count": len(questions_out),
         "total_score": total_score,
         "max_score": max_total,
         "comment": _generate_comment(questions_out),
         "questions": questions_out,
     })
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  历史记录
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _save_history(record: dict, questions_input: list[dict], upload_dir: Path) -> str:
+    """将批改结果保存到 history/ 目录，裁切图一并保留。"""
+    record_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
+    history_dir = Path(current_app.config.get("HISTORY_DIR", "history"))
+    record_dir = history_dir / record_id
+    crop_dir = record_dir / "crops"
+    crop_dir.mkdir(parents=True, exist_ok=True)
+
+    # 复制裁切图到历史目录
+    for q in questions_input:
+        crop_url = q.get("crop_url", "")
+        if crop_url.startswith("/api/uploads/"):
+            src = upload_dir / crop_url[len("/api/uploads/"):]
+        else:
+            src = Path(crop_url)
+        if src.is_file():
+            dst = crop_dir / f"q_{q['id']:02d}.png"
+            shutil.copy2(str(src), str(dst))
+
+    # 复制增强图
+    image_url = record.get("image_url", "")
+    if image_url.startswith("/api/uploads/"):
+        src_img = upload_dir / image_url[len("/api/uploads/"):]
+        if src_img.is_file():
+            shutil.copy2(str(src_img), str(record_dir / "enhanced.png"))
+
+    # 更新 crop_url 指向历史目录
+    for q in record["questions"]:
+        q["crop_url"] = f"/api/history/{record_id}/crops/q_{q['id']:02d}.png"
+
+    record["id"] = record_id
+    record["created_at"] = datetime.now().isoformat()
+
+    # 写入 JSON
+    with open(record_dir / "record.json", "w", encoding="utf-8") as f:
+        json.dump(record, f, ensure_ascii=False, indent=2)
+
+    return record_id
+
+
+@api_bp.route("/history", methods=["GET"])
+def list_history():
+    """获取历史批改记录列表。"""
+    history_dir = Path(current_app.config.get("HISTORY_DIR", "history"))
+    if not history_dir.is_dir():
+        return success_response({"records": []})
+
+    records = []
+    for d in sorted(history_dir.iterdir(), reverse=True):
+        record_file = d / "record.json"
+        if record_file.is_file():
+            with open(record_file, encoding="utf-8") as f:
+                rec = json.load(f)
+            records.append({
+                "id": rec.get("id", d.name),
+                "created_at": rec.get("created_at", ""),
+                "cut_mode": rec.get("cut_mode", ""),
+                "question_count": rec.get("question_count", 0),
+                "total_score": rec.get("total_score", 0),
+                "max_score": rec.get("max_score", 0),
+                "comment": rec.get("comment", ""),
+            })
+
+    return success_response({"records": records})
+
+
+@api_bp.route("/history/<record_id>", methods=["GET"])
+def get_history(record_id: str):
+    """获取单条历史批改记录详情。"""
+    history_dir = Path(current_app.config.get("HISTORY_DIR", "history"))
+    record_file = history_dir / record_id / "record.json"
+    if not record_file.is_file():
+        return error_response("UNKNOWN", f"记录不存在: {record_id}")
+
+    with open(record_file, encoding="utf-8") as f:
+        record = json.load(f)
+
+    return success_response(record)
+
+
+@api_bp.route("/history/<record_id>", methods=["DELETE"])
+def delete_history(record_id: str):
+    """删除单条历史记录。"""
+    history_dir = Path(current_app.config.get("HISTORY_DIR", "history"))
+    record_dir = history_dir / record_id
+    if not record_dir.is_dir():
+        return error_response("UNKNOWN", f"记录不存在: {record_id}")
+
+    shutil.rmtree(str(record_dir))
+    return success_response({"message": "已删除"})
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  历史记录文件访问
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@api_bp.route("/history/<record_id>/<path:filename>")
+def serve_history_file(record_id: str, filename: str):
+    history_dir = Path(current_app.config.get("HISTORY_DIR", "history"))
+    return send_from_directory(str(history_dir / record_id), filename)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

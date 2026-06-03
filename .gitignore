@@ -35,6 +35,10 @@ Thumbs.db
 uploads/*
 !uploads/.gitkeep
 
+# 批改历史记录
+history/*
+!history/.gitkeep
+
 # 测试产物
 .pytest_cache/
 .coverage
