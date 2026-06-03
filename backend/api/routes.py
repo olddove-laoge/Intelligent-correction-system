@@ -137,24 +137,31 @@ def _cut_impl():
         if not save_path.is_file():
             return error_response("UNKNOWN", f"图像不存在: {image_id}")
 
-    # ── 2. 读取 + 增强 ──────────────────────────────────────────────
+    # ── 2. 读取 ──────────────────────────────────────────────────────
     image = cv2.imread(str(save_path))
     if image is None:
         return error_response("IMAGE_BLURRY", "图像无法读取，请重新上传")
 
-    enhanced = enhance_to_white_bg_black_text(image)
+    # ── 3. 透视矫正 ─────────────────────────────────────────────────
+    try:
+        corrected, *_ = auto_correct_paper_perspective(image)
+    except Exception:
+        corrected = image
+
+    # ── 4. 增强 ─────────────────────────────────────────────────────
+    enhanced = enhance_to_white_bg_black_text(corrected)
     enhanced_path = upload_dir / f"enhanced_{image_id}"
     cv2.imwrite(str(enhanced_path), enhanced)
 
-    # ── 3. 判定手写/印刷 ────────────────────────────────────────────
+    # ── 5. 判定手写/印刷 ────────────────────────────────────────────
     decision = classify_paper_style_with_mimo(str(enhanced_path))
     style = str(decision.get("style", "printed")).strip().lower()
 
-    # ── 4. 切题 ────────────────────────────────────────────────────
+    # ── 6. 切题 ────────────────────────────────────────────────────
     if style == "handwriting":
         return _cut_handwriting(enhanced, enhanced_path, upload_dir, image_id)
     else:
-        return _cut_printed(enhanced, enhanced_path, upload_dir, image_id, image)
+        return _cut_printed(enhanced, enhanced_path, upload_dir, image_id, corrected)
 
 
 # ── 手写切题 ────────────────────────────────────────────────────────────
@@ -214,9 +221,8 @@ def _cut_handwriting(enhanced, enhanced_path, upload_dir, image_id):
 
 
 # ── 印刷切题 ────────────────────────────────────────────────────────────
-def _cut_printed(enhanced, enhanced_path, upload_dir, image_id, original):
-    """透视矫正 → 阿里云切题 → 裁切增强图。"""
-    corrected, *_ = auto_correct_paper_perspective(original)
+def _cut_printed(enhanced, enhanced_path, upload_dir, image_id, corrected):
+    """用已矫正的图像调用阿里云切题 → 裁切增强图。"""
     corrected_path = upload_dir / f"corrected_{image_id}"
     cv2.imwrite(str(corrected_path), corrected)
 
