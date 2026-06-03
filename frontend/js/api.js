@@ -112,6 +112,22 @@ const ApiClient = (() => {
     return parseJson(await fetchWithTimeout(`${API_BASE}/api/history/${recordId}`, { method: 'DELETE' }));
   }
 
+  // ── 收藏 ─────────────────────────────────────────────────────────
+  async function getFavoriteIds() {
+    if (MOCK_MODE) return { ids: [] };
+    return parseJson(await fetchWithTimeout(`${API_BASE}/api/favorite_ids`));
+  }
+
+  async function addFavorite(recordId) {
+    if (MOCK_MODE) return { starred: true };
+    return parseJson(await fetchWithTimeout(`${API_BASE}/api/favorite/${recordId}`, { method: 'POST' }));
+  }
+
+  async function removeFavorite(recordId) {
+    if (MOCK_MODE) return { starred: false };
+    return parseJson(await fetchWithTimeout(`${API_BASE}/api/favorite/${recordId}`, { method: 'DELETE' }));
+  }
+
   // ── Mock ─────────────────────────────────────────────────────────
   function mockCut() {
     return Promise.resolve({
@@ -142,5 +158,5 @@ const ApiClient = (() => {
     return url.startsWith('/') ? base + url : base + '/' + url;
   }
 
-  return { ApiError, ErrorCode, healthCheck, uploadImage, cutImage, gradeQuestions, getHistory, getHistoryDetail, deleteHistory, resolveImageUrl };
+  return { ApiError, ErrorCode, healthCheck, uploadImage, cutImage, gradeQuestions, getHistory, getHistoryDetail, deleteHistory, getFavoriteIds, addFavorite, removeFavorite, resolveImageUrl };
 })();

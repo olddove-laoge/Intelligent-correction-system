@@ -116,9 +116,11 @@ body {
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.4);
   z-index: 100;
-  display: flex;
   align-items: center;
   justify-content: center;
+}
+.history-panel:not([hidden]) {
+  display: flex;
 }
 .history-panel__header {
   display: flex;
@@ -177,6 +179,21 @@ body {
 }
 .history-item__delete:hover {
   color: var(--error);
+}
+.history-item__star {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #cbd5e1;
+  padding: 0.25rem;
+  transition: color 0.15s;
+}
+.history-item__star--active {
+  color: #f59e0b;
+}
+.history-item__star:hover {
+  color: #f59e0b;
 }
 
 .status-dot--err {

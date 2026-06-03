@@ -110,6 +110,7 @@
     els.btnGrade.addEventListener('click', handleGrade);
     els.btnHistory.addEventListener('click', showHistory);
     els.btnCloseHistory.addEventListener('click', () => { els.historyPanel.hidden = true; });
+    els.historyPanel.addEventListener('click', (e) => { if (e.target === els.historyPanel) els.historyPanel.hidden = true; });
   }
 
   async function checkApiHealth() {
@@ -416,26 +417,46 @@
     els.historyPanel.hidden = false;
     els.historyList.innerHTML = '<p style="padding:1rem;color:var(--text-muted)">加载中…</p>';
     try {
-      const data = await ApiClient.getHistory();
-      const records = data.records || [];
+      const [histData, favData] = await Promise.all([
+        ApiClient.getHistory(),
+        ApiClient.getFavoriteIds(),
+      ]);
+      const records = histData.records || [];
+      const favIds = new Set(favData.ids || []);
+
       if (!records.length) {
         els.historyList.innerHTML = '<p style="padding:1.5rem;text-align:center;color:var(--text-muted)">暂无批改记录</p>';
         return;
       }
+
+      // 收藏的排前面
+      records.sort((a, b) => {
+        const sa = favIds.has(a.id) ? 0 : 1;
+        const sb = favIds.has(b.id) ? 0 : 1;
+        return sa - sb;
+      });
+
       els.historyList.innerHTML = '';
       records.forEach((r) => {
         const item = document.createElement('div');
         item.className = 'history-item';
         const time = r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : r.id;
         const mode = r.cut_mode === 'handwriting' ? '手写' : '印刷';
+        const starred = favIds.has(r.id);
         item.innerHTML = `
           <div class="history-item__info">
             <div class="history-item__time">${escapeHtml(time)} · ${mode}</div>
             <div class="history-item__summary">${escapeHtml(r.comment || '')}</div>
           </div>
           <span class="history-item__score">${r.total_score}/${r.max_score}</span>
+          <button class="history-item__star${starred ? ' history-item__star--active' : ''}" title="收藏" data-id="${r.id}">★</button>
           <button class="history-item__delete" title="删除" data-id="${r.id}">×</button>`;
+
         item.querySelector('.history-item__info').addEventListener('click', () => loadHistoryDetail(r.id));
+        item.querySelector('.history-item__star').addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleFavorite(r.id, e.currentTarget);
+        });
         item.querySelector('.history-item__delete').addEventListener('click', (e) => {
           e.stopPropagation();
           deleteHistoryRecord(r.id);
@@ -470,6 +491,23 @@
       await ApiClient.deleteHistory(recordId);
       showToast('已删除', 'success');
       showHistory();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  async function toggleFavorite(recordId, btn) {
+    const isStarred = btn.classList.contains('history-item__star--active');
+    try {
+      if (isStarred) {
+        await ApiClient.removeFavorite(recordId);
+        btn.classList.remove('history-item__star--active');
+        showToast('已取消收藏', 'success');
+      } else {
+        await ApiClient.addFavorite(recordId);
+        btn.classList.add('history-item__star--active');
+        showToast('已收藏', 'success');
+      }
     } catch (err) {
       showToast(err.message, 'error');
     }

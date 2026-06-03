@@ -39,6 +39,10 @@ uploads/*
 history/*
 !history/.gitkeep
 
+# 收藏记录
+favorites/*
+!favorites/.gitkeep
+
 # 测试产物
 .pytest_cache/
 .coverage

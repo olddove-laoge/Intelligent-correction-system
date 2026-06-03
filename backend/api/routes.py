@@ -502,6 +502,70 @@ def serve_history_file(record_id: str, filename: str):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  收藏
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _get_favorites_dir() -> Path:
+    d = Path(current_app.config.get("HISTORY_DIR", "history")).parent / "favorites"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+@api_bp.route("/favorite/<record_id>", methods=["POST"])
+def add_favorite(record_id: str):
+    """收藏一条批改记录（从 history 复制到 favorites）。"""
+    history_dir = Path(current_app.config.get("HISTORY_DIR", "history"))
+    src_dir = history_dir / record_id
+    if not src_dir.is_dir():
+        return error_response("UNKNOWN", f"记录不存在: {record_id}")
+
+    fav_dir = _get_favorites_dir() / record_id
+    if fav_dir.is_dir():
+        return success_response({"message": "已收藏", "starred": True})
+
+    shutil.copytree(str(src_dir), str(fav_dir))
+    return success_response({"message": "已收藏", "starred": True})
+
+
+@api_bp.route("/favorite/<record_id>", methods=["DELETE"])
+def remove_favorite(record_id: str):
+    """取消收藏。"""
+    fav_dir = _get_favorites_dir() / record_id
+    if fav_dir.is_dir():
+        shutil.rmtree(str(fav_dir))
+    return success_response({"message": "已取消收藏", "starred": False})
+
+
+@api_bp.route("/favorites", methods=["GET"])
+def list_favorites():
+    """获取收藏列表。"""
+    fav_dir = _get_favorites_dir()
+    records = []
+    for d in sorted(fav_dir.iterdir(), reverse=True):
+        record_file = d / "record.json"
+        if record_file.is_file():
+            with open(record_file, encoding="utf-8") as f:
+                rec = json.load(f)
+            records.append({
+                "id": rec.get("id", d.name),
+                "created_at": rec.get("created_at", ""),
+                "cut_mode": rec.get("cut_mode", ""),
+                "question_count": rec.get("question_count", 0),
+                "total_score": rec.get("total_score", 0),
+                "max_score": rec.get("max_score", 0),
+                "comment": rec.get("comment", ""),
+            })
+    return success_response({"records": records})
+
+
+@api_bp.route("/favorite_ids", methods=["GET"])
+def get_favorite_ids():
+    """获取所有已收藏的 record_id 列表（用于前端显示星标状态）。"""
+    fav_dir = _get_favorites_dir()
+    ids = [d.name for d in fav_dir.iterdir() if d.is_dir() and (d / "record.json").is_file()]
+    return success_response({"ids": ids})
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  辅助函数
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def _make_placeholder(q: dict, reason: str) -> dict:
