@@ -46,6 +46,7 @@
     loadingSub: $('#loadingSub'),
     toastContainer: $('#toastContainer'),
     btnHistory: $('#btnHistory'),
+    btnFavorites: $('#btnFavorites'),
     historyPanel: $('#historyPanel'),
     historyList: $('#historyList'),
     btnCloseHistory: $('#btnCloseHistory'),
@@ -110,7 +111,8 @@
     els.btnUpload.addEventListener('click', handleUpload);
     els.btnCut.addEventListener('click', handleCut);
     els.btnGrade.addEventListener('click', handleGrade);
-    els.btnHistory.addEventListener('click', showHistory);
+    els.btnHistory.addEventListener('click', () => showHistory('history'));
+    els.btnFavorites.addEventListener('click', () => showHistory('favorites'));
     els.btnCloseHistory.addEventListener('click', () => { els.historyPanel.hidden = true; });
     els.historyPanel.addEventListener('click', (e) => { if (e.target === els.historyPanel) els.historyPanel.hidden = true; });
     els.btnStar.addEventListener('click', () => { toggleFavoriteFromResult(); });
@@ -417,40 +419,49 @@
     setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3500);
   }
 
-  // ── 历史记录 ─────────────────────────────────────────────────────
-  async function showHistory() {
+  // ── 历史记录 / 收藏 ──────────────────────────────────────────────
+  async function showHistory(type = 'history') {
     els.historyPanel.hidden = false;
+    const titleEl = els.historyPanel.querySelector('h2');
+    titleEl.textContent = type === 'favorites' ? '收藏记录' : '历史批改记录';
     els.historyList.innerHTML = '<p style="padding:1rem;color:var(--text-muted)">加载中…</p>';
-    try {
-      const [histData, favData] = await Promise.all([
-        ApiClient.getHistory(),
-        ApiClient.getFavoriteIds(),
-      ]);
-      const records = histData.records || [];
-      const favIds = new Set(favData.ids || []);
 
-      if (!records.length) {
-        els.historyList.innerHTML = '<p style="padding:1.5rem;text-align:center;color:var(--text-muted)">暂无批改记录</p>';
-        return;
+    try {
+      let records = [];
+      let favIds = new Set();
+
+      if (type === 'favorites') {
+        const data = await ApiClient.getHistory();
+        const allRecords = data.records || [];
+        const favData = await ApiClient.getFavoriteIds();
+        favIds = new Set(favData.ids || []);
+        records = allRecords.filter((r) => favIds.has(r.id));
+      } else {
+        const [histData, favData] = await Promise.all([
+          ApiClient.getHistory(),
+          ApiClient.getFavoriteIds(),
+        ]);
+        records = histData.records || [];
+        favIds = new Set(favData.ids || []);
+        records.sort((a, b) => (favIds.has(a.id) ? 0 : 1) - (favIds.has(b.id) ? 0 : 1));
       }
 
-      // 收藏的排前面
-      records.sort((a, b) => {
-        const sa = favIds.has(a.id) ? 0 : 1;
-        const sb = favIds.has(b.id) ? 0 : 1;
-        return sa - sb;
-      });
+      if (!records.length) {
+        const msg = type === 'favorites' ? '暂无收藏记录' : '暂无批改记录';
+        els.historyList.innerHTML = `<p style="padding:1.5rem;text-align:center;color:var(--text-muted)">${msg}</p>`;
+        return;
+      }
 
       els.historyList.innerHTML = '';
       records.forEach((r) => {
         const item = document.createElement('div');
         item.className = 'history-item';
         const time = r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : r.id;
-        const mode = r.cut_mode === 'handwriting' ? '手写' : '印刷';
+        const cutMode = r.cut_mode === 'handwriting' ? '手写' : '印刷';
         const isFav = favIds.has(r.id);
         item.innerHTML = `
           <div class="history-item__info">
-            <div class="history-item__time">${isFav ? '★ ' : ''}${escapeHtml(time)} · ${mode}</div>
+            <div class="history-item__time">${isFav ? '★ ' : ''}${escapeHtml(time)} · ${cutMode}</div>
             <div class="history-item__summary">${escapeHtml(r.comment || '')}</div>
           </div>
           <span class="history-item__score">${r.total_score}/${r.max_score}</span>
