@@ -44,6 +44,10 @@
     loadingText: $('#loadingText'),
     loadingSub: $('#loadingSub'),
     toastContainer: $('#toastContainer'),
+    btnHistory: $('#btnHistory'),
+    historyPanel: $('#historyPanel'),
+    historyList: $('#historyList'),
+    btnCloseHistory: $('#btnCloseHistory'),
   };
 
   function init() {
@@ -104,6 +108,8 @@
     els.btnUpload.addEventListener('click', handleUpload);
     els.btnCut.addEventListener('click', handleCut);
     els.btnGrade.addEventListener('click', handleGrade);
+    els.btnHistory.addEventListener('click', showHistory);
+    els.btnCloseHistory.addEventListener('click', () => { els.historyPanel.hidden = true; });
   }
 
   async function checkApiHealth() {
@@ -403,6 +409,70 @@
     els.toastContainer.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('show'));
     setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3500);
+  }
+
+  // ── 历史记录 ─────────────────────────────────────────────────────
+  async function showHistory() {
+    els.historyPanel.hidden = false;
+    els.historyList.innerHTML = '<p style="padding:1rem;color:var(--text-muted)">加载中…</p>';
+    try {
+      const data = await ApiClient.getHistory();
+      const records = data.records || [];
+      if (!records.length) {
+        els.historyList.innerHTML = '<p style="padding:1.5rem;text-align:center;color:var(--text-muted)">暂无批改记录</p>';
+        return;
+      }
+      els.historyList.innerHTML = '';
+      records.forEach((r) => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        const time = r.created_at ? new Date(r.created_at).toLocaleString('zh-CN') : r.id;
+        const mode = r.cut_mode === 'handwriting' ? '手写' : '印刷';
+        item.innerHTML = `
+          <div class="history-item__info">
+            <div class="history-item__time">${escapeHtml(time)} · ${mode}</div>
+            <div class="history-item__summary">${escapeHtml(r.comment || '')}</div>
+          </div>
+          <span class="history-item__score">${r.total_score}/${r.max_score}</span>
+          <button class="history-item__delete" title="删除" data-id="${r.id}">×</button>`;
+        item.querySelector('.history-item__info').addEventListener('click', () => loadHistoryDetail(r.id));
+        item.querySelector('.history-item__delete').addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteHistoryRecord(r.id);
+        });
+        els.historyList.appendChild(item);
+      });
+    } catch (err) {
+      els.historyList.innerHTML = `<p style="padding:1.5rem;color:var(--error)">${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  async function loadHistoryDetail(recordId) {
+    els.historyPanel.hidden = true;
+    setLoading(true, '加载历史记录…');
+    try {
+      const data = await ApiClient.getHistoryDetail(recordId);
+      state.cutResult = { cut_mode: data.cut_mode, image_url: data.image_url, questions: data.questions || [] };
+      showResultsShell();
+      renderCutResult(data);
+      renderGradeResult(data);
+      showToast('已加载历史记录', 'success');
+    } catch (err) {
+      showError(err.message || String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteHistoryRecord(recordId) {
+    if (!confirm('确认删除这条记录？')) return;
+    try {
+      await ApiClient.deleteHistory(recordId);
+      showToast('已删除', 'success');
+      showHistory();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
