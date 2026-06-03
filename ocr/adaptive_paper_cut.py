@@ -6,14 +6,14 @@ from pathlib import Path
 
 import cv2
 
-from aliyun_paper_cut import draw_detected_regions, recognize_edu_paper_cut
-from seeddream_qieti import (
+from ocr.aliyun_paper_cut import draw_detected_regions, recognize_edu_paper_cut
+from preprocessing.seeddream_qieti import (
     download_image,
     generate_marked_image,
     image_file_to_data_url,
 )
 
-from mimo_question_grading import (
+from grading.mimo_question_grading import (
     MIMO_API_KEY,
     MIMO_BASE_URL,
     MIMO_MODEL,

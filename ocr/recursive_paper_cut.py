@@ -10,7 +10,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from aliyun_paper_cut import draw_detected_regions, recognize_edu_paper_cut
+from ocr.aliyun_paper_cut import draw_detected_regions, recognize_edu_paper_cut
 
 
 @dataclass

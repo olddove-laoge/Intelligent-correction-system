@@ -25,21 +25,20 @@ from backend.api.responses import error_response, success_response
 from backend.annotation.drawer import draw_all_annotations, image_to_base64
 
 # ── 预处理 ──────────────────────────────────────────────────────────────
-from paper_perspective_correction import auto_correct_paper_perspective
-from document_enhance import enhance_to_white_bg_black_text
+from preprocessing.paper_perspective_correction import auto_correct_paper_perspective
+from preprocessing.document_enhance import enhance_to_white_bg_black_text
+from preprocessing.seeddream_qieti import generate_marked_image, download_image
+from preprocessing.redbox_crop import RedBoxRegion, detect_red_boxes, crop_regions_from_image
 
-# ── 风格判定 ────────────────────────────────────────────────────────────
-from mimo_question_grading import classify_paper_style_with_mimo
+# ── 切题 ────────────────────────────────────────────────────────────────
+from ocr.aliyun_paper_cut import recognize_edu_paper_cut, _iter_content_regions
 
-# ── 手写路线 ────────────────────────────────────────────────────────────
-from seeddream_qieti import generate_marked_image, download_image
-from redbox_crop import RedBoxRegion, detect_red_boxes, crop_regions_from_image
-
-# ── 印刷路线 ────────────────────────────────────────────────────────────
-from aliyun_paper_cut import recognize_edu_paper_cut, _iter_content_regions
-
-# ── 批改 ────────────────────────────────────────────────────────────────
-from mimo_question_grading import grade_question_with_mimo, MimoQuestionGradingError
+# ── 批改 + 风格判定 ─────────────────────────────────────────────────────
+from grading.mimo_question_grading import (
+    classify_paper_style_with_mimo,
+    grade_question_with_mimo,
+    MimoQuestionGradingError,
+)
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 

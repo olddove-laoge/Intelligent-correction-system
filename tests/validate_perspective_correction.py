@@ -3,7 +3,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from paper_perspective_correction import (
+from preprocessing.paper_perspective_correction import (
     A4_ASPECT_RATIO,
     auto_correct_paper_perspective,
     correct_paper_perspective,
